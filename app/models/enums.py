@@ -1,0 +1,22 @@
+from enum import StrEnum
+
+
+class ApplicationStatus(StrEnum):
+    DISCOVERED = "DISCOVERED"
+    MATCHED = "MATCHED"
+    SHORTLISTED = "SHORTLISTED"
+    PREPARING = "PREPARING"
+    READY_FOR_REVIEW = "READY_FOR_REVIEW"
+    APPROVED = "APPROVED"
+    APPLIED = "APPLIED"
+    INTERVIEW = "INTERVIEW"
+    REJECTED = "REJECTED"
+    OFFER = "OFFER"
+    WITHDRAWN = "WITHDRAWN"
+
+
+class RemoteStatus(StrEnum):
+    ONSITE = "ONSITE"
+    HYBRID = "HYBRID"
+    REMOTE = "REMOTE"
+    UNSPECIFIED = "UNSPECIFIED"
