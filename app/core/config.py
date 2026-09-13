@@ -26,10 +26,23 @@ class Settings(BaseSettings):
     ollama_model: str = "llama3.2"
     ollama_embedding_model: str = "nomic-embed-text"
     llm_timeout_seconds: float = Field(default=60.0, gt=0, le=300)
+    embedding_dimension: int = Field(default=768, ge=1, le=4096)
 
     max_resume_size_mb: int = Field(default=10, ge=1, le=50)
     store_resume_files: bool = False
     resume_storage_path: str = "/tmp/ai-job-assistant/resumes"
+
+    redis_url: str = "redis://redis:6379/0"
+    celery_broker_url: str = "redis://redis:6379/1"
+    celery_result_backend: str = "redis://redis:6379/2"
+
+    job_providers: str = "remotive,arbeitnow"
+    job_provider_timeout_seconds: float = Field(default=30.0, gt=0, le=120)
+
+    gmail_access_token: str | None = None
+    gmail_user_id: str = "me"
+    gmail_monitor_query: str = "newer_than:7d (interview OR recruiter OR application OR offer OR assessment)"
+    email_provider_timeout_seconds: float = Field(default=30.0, gt=0, le=120)
 
     @field_validator("secret_key")
     @classmethod
@@ -42,6 +55,10 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def job_provider_list(self) -> list[str]:
+        return [provider.strip().lower() for provider in self.job_providers.split(",") if provider.strip()]
 
     @property
     def max_resume_size_bytes(self) -> int:
