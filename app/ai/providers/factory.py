@@ -18,6 +18,7 @@ def get_llm_provider() -> LLMProvider | None:
             api_key=settings.openai_api_key,
             model=settings.openai_model,
             embedding_model=settings.openai_embedding_model,
+            embedding_dimensions=settings.embedding_dimension,
             timeout=settings.llm_timeout_seconds,
         )
     if settings.llm_provider == "ollama":
