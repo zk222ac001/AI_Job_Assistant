@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:pg17
     environment:
       POSTGRES_DB: jobassistant
       POSTGRES_USER: jb
@@ -14,24 +14,58 @@ services:
       retries: 10
     ports:
       - "5433:5432"
-
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "6379:6379"
   api:
     build: .
-    env_file:
-      - .env
-    # Containers communicate on the PostgreSQL container port (5432), not the
-    # host-published port (5433). This explicit override also prevents a stale
-    # local .env from accidentally pointing the API container at db:5433.
+    env_file: [.env]
     environment:
       DATABASE_URL: postgresql+asyncpg://jb:jb@db:5432/jobassistant
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
     depends_on:
-      db:
-        condition: service_healthy
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    ports:
-      - "8000:8000"
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    ports: ["8000:8000"]
     restart: unless-stopped
-
+  worker:
+    build: .
+    command: celery -A app.workers.celery_app:celery_app worker --loglevel=INFO --concurrency=2
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://jb:jb@db:5432/jobassistant
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    restart: unless-stopped
+  beat:
+    build: .
+    command: celery -A app.workers.celery_app:celery_app beat --loglevel=INFO
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://jb:jb@db:5432/jobassistant
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    restart: unless-stopped
 volumes:
   postgres_data:
+  redis_data:
