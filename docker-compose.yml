@@ -3,12 +3,12 @@ services:
     image: postgres:17-alpine
     environment:
       POSTGRES_DB: jobassistant
-      POSTGRES_USER: jobassistant
-      POSTGRES_PASSWORD: jobassistant
+      POSTGRES_USER: jb
+      POSTGRES_PASSWORD: jb
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U jobassistant -d jobassistant"]
+      test: ["CMD-SHELL", "pg_isready -U jb -d jobassistant"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -19,6 +19,11 @@ services:
     build: .
     env_file:
       - .env
+    # Containers communicate on the PostgreSQL container port (5432), not the
+    # host-published port (5433). This explicit override also prevents a stale
+    # local .env from accidentally pointing the API container at db:5433.
+    environment:
+      DATABASE_URL: postgresql+asyncpg://jb:jb@db:5432/jobassistant
     depends_on:
       db:
         condition: service_healthy
