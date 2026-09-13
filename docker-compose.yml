@@ -3,12 +3,12 @@ services:
     image: postgres:17-alpine
     environment:
       POSTGRES_DB: jobassistant
-      POSTGRES_USER: jb
-      POSTGRES_PASSWORD: jb
+      POSTGRES_USER: jobassistant
+      POSTGRES_PASSWORD: jobassistant
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U jb -d jobassistant"]
+      test: ["CMD-SHELL", "pg_isready -U jobassistant -d jobassistant"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -22,6 +22,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
     restart: unless-stopped
