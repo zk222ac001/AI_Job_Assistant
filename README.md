@@ -1,126 +1,236 @@
-# AI Job Assistant — Phase 1 Foundation
+# AI Job Assistant — Phase 2 AI Pipeline
 
-A production-oriented Python backend foundation for an AI-assisted job search platform.
+A production-oriented Python backend for an AI-assisted job search platform.
 
-## Included in Phase 1
+Phase 1 established FastAPI, PostgreSQL, SQLAlchemy, Alembic, candidate profiles, job postings, and application tracking. Phase 2 adds resume processing, explainable job matching, skill-gap analysis, OpenAI/Ollama integrations, resume tailoring, and cover-letter assistance with deterministic fallbacks.
 
-- FastAPI REST API
-- PostgreSQL database
-- Async SQLAlchemy 2.x
-- Alembic migrations
-- Candidate profiles
-- Job postings
-- Application tracking
-- Vendor-neutral LLM provider interface
-- Vendor-neutral job-provider interface
-- Pydantic validation
-- Docker + Docker Compose
-- pytest integration tests
-- Health and readiness endpoints
+## Phase 2 Features
+
+- Upload PDF, DOCX, TXT, and Markdown resumes
+- Extract resume text and structured candidate facts
+- Optional LLM-based structured resume extraction
+- Analyze job descriptions and extract requirements
+- Deterministic, explainable 0–100 job matching
+- Required/preferred skill-gap analysis
+- Optional embedding-based semantic match scoring
+- OpenAI provider
+- Ollama provider for local/private inference
+- Persist match history
+- ATS-focused resume tailoring plan with factuality guardrails
+- Cover-letter generation with user-review warnings
+- Phase 2 Alembic migration and tests
 
 ## Architecture
 
 ```text
-Client / Frontend
-      |
-      v
-FastAPI REST API
-      |
-      +--> Service Layer
-      |      |
-      |      +--> Candidate Service
-      |      +--> Job Service
-      |      +--> Application Service
-      |
-      +--> AI Layer (provider abstraction)
-      |
-      +--> Job Provider Layer
-      |
-      v
-PostgreSQL
+                         FastAPI
+                            |
+          +-----------------+------------------+
+          |                 |                  |
+          v                 v                  v
+   Candidate API        Jobs API          Resume API
+          |                 |                  |
+          +-----------------+------------------+
+                            |
+                            v
+                       Analysis API
+                            |
+              +-------------+-------------+
+              |             |             |
+              v             v             v
+        Resume Parser  Job Analyzer   Match Engine
+              |             |             |
+              +-------------+-------------+
+                            |
+                    Optional AI Layer
+                      /            \
+                     v              v
+                  OpenAI          Ollama
+                            |
+                            v
+                       PostgreSQL
 ```
 
-The AI and external job-source integrations are intentionally abstracted. Phase 2 can add
-OpenAI/Ollama/Gemini implementations and permitted job-data providers without coupling the
-core application to one vendor.
+The core application does not require an LLM. With `LLM_PROVIDER=none`, resume parsing, job analysis, and matching still work using deterministic logic.
 
-## Project Structure
+## Setup
 
-```text
-ai-job-assistant/
-├── app/
-│   ├── api/routes/
-│   ├── ai/providers/
-│   ├── core/
-│   ├── db/
-│   ├── jobs/providers/
-│   ├── models/
-│   ├── schemas/
-│   ├── services/
-│   └── main.py
-├── alembic/
-│   └── versions/
-├── tests/
-├── .env.example
-├── alembic.ini
-├── docker-compose.yml
-├── Dockerfile
-├── pyproject.toml
-└── README.md
-```
-
-## Run with Docker
-
-1. Copy the environment file:
+Copy the environment file:
 
 ```bash
 cp .env.example .env
 ```
 
-On Windows PowerShell:
+Windows PowerShell:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-2. Change `SECRET_KEY` in `.env`.
+Generate a secret key:
 
-3. Start the stack:
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(64))"
+```
+
+Put it in `.env`:
+
+```env
+SECRET_KEY=your-generated-secret
+```
+
+Start the stack:
 
 ```bash
 docker compose up --build
 ```
 
-4. Open the API documentation:
+Swagger UI:
 
 ```text
 http://localhost:8000/docs
 ```
 
-Health endpoint:
+## AI Provider Configuration
 
-```text
-http://localhost:8000/health
+### Deterministic mode
+
+```env
+LLM_PROVIDER=none
 ```
 
-Readiness endpoint:
+### OpenAI
+
+```env
+LLM_PROVIDER=openai
+OPENAI_API_KEY=your-api-key
+OPENAI_MODEL=gpt-5.6-luna
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+```
+
+### Ollama
+
+```env
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+OLLAMA_MODEL=llama3.2
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+```
+
+Example local setup:
+
+```bash
+ollama pull llama3.2
+ollama pull nomic-embed-text
+```
+
+## Resume Privacy
+
+Original resume files are not stored by default:
+
+```env
+STORE_RESUME_FILES=false
+```
+
+Extracted text and structured resume data are stored in PostgreSQL so matching can run. For development-only original-file storage:
+
+```env
+STORE_RESUME_FILES=true
+RESUME_STORAGE_PATH=/tmp/ai-job-assistant/resumes
+```
+
+For production SaaS, replace local file storage with encrypted object storage and explicit retention/deletion policies.
+
+## Phase 2 Endpoints
+
+### Resume processing
 
 ```text
-http://localhost:8000/ready
+POST   /api/v1/candidates/{candidate_id}/resumes
+GET    /api/v1/candidates/{candidate_id}/resumes
+GET    /api/v1/resumes/{resume_id}
+DELETE /api/v1/resumes/{resume_id}
+```
+
+### Job analysis
+
+```text
+POST /api/v1/analysis/jobs/{job_id}?use_ai=true&persist=false
+```
+
+### Candidate/job matching
+
+```text
+POST /api/v1/analysis/match
+GET  /api/v1/analysis/matches/{candidate_id}
+```
+
+Example request:
+
+```json
+{
+  "candidate_id": "candidate-uuid",
+  "job_id": "job-uuid",
+  "resume_id": "resume-uuid",
+  "use_ai": true,
+  "persist": true
+}
+```
+
+### Resume tailoring
+
+```text
+POST /api/v1/analysis/tailor-resume
+```
+
+### Cover letter
+
+```text
+POST /api/v1/analysis/cover-letter
+```
+
+## Match Scoring
+
+Without embeddings:
+
+```text
+55% skill match
+20% experience match
+15% role/title alignment
+10% location/remote alignment
+```
+
+With embeddings:
+
+```text
+45% skill match
+18% experience match
+12% role/title alignment
+10% location/remote alignment
+15% semantic similarity
+```
+
+The output always includes matched skills, missing required skills, component scores, recommendation, and explanation.
+
+## Database Migration
+
+Phase 2 adds:
+
+```text
+resumes
+job_matches
+```
+
+Docker runs migrations automatically. Locally:
+
+```bash
+alembic upgrade head
 ```
 
 ## Local Development
 
-Create a Python 3.12 virtual environment and install development dependencies:
-
 ```bash
 python -m venv .venv
-```
-
-Linux/macOS:
-
-```bash
-source .venv/bin/activate
 ```
 
 Windows PowerShell:
@@ -147,61 +257,32 @@ Lint:
 ruff check .
 ```
 
-Type checking:
+Type check:
 
 ```bash
 mypy app
 ```
 
-## Main API Endpoints
+## Safety and Factuality
 
-### System
+The system is designed to:
 
-- `GET /health`
-- `GET /ready`
+- never invent candidate skills, employers, degrees, certifications, projects, dates, or achievements;
+- keep unknown resume values empty rather than guessing;
+- show missing job requirements as gaps;
+- require review of generated resume and cover-letter content;
+- avoid CAPTCHA bypasses and platform security circumvention;
+- keep automatic application submission outside this Phase 2 pipeline.
 
-### Candidates
+## Recommended Phase 3
 
-- `POST /api/v1/candidates`
-- `GET /api/v1/candidates`
-- `GET /api/v1/candidates/{candidate_id}`
-- `PATCH /api/v1/candidates/{candidate_id}`
-- `DELETE /api/v1/candidates/{candidate_id}`
-
-### Jobs
-
-- `POST /api/v1/jobs`
-- `GET /api/v1/jobs`
-- `GET /api/v1/jobs/{job_id}`
-- `PATCH /api/v1/jobs/{job_id}`
-- `DELETE /api/v1/jobs/{job_id}`
-
-### Applications
-
-- `POST /api/v1/applications`
-- `GET /api/v1/applications`
-- `GET /api/v1/applications/{application_id}`
-- `PATCH /api/v1/applications/{application_id}`
-- `DELETE /api/v1/applications/{application_id}`
-
-## Next Phase
-
-Phase 2 should add:
-
-1. Resume PDF/DOCX upload and parsing
-2. Structured candidate extraction
-3. Job-description requirement extraction
-4. Deterministic job-match scoring
-5. LLM-assisted semantic matching
-6. OpenAI and Ollama provider implementations
-7. Resume tailoring with factuality guardrails
-8. Cover-letter generation
-9. Match explanation endpoint
-10. AI evaluation tests
-
-## Safety Design
-
-This project is designed around user-controlled assistance. It should not fabricate candidate
-qualifications, bypass CAPTCHAs, or circumvent job-site security controls. Automated application
-submission should only be added for integrations that explicitly permit it and should retain an
-auditable user-approval step for consequential actions.
+1. Job-source connectors using permitted APIs/feeds
+2. PostgreSQL `pgvector` for persistent embeddings
+3. Background workers with Redis/Celery or equivalent
+4. Job alerts and notifications
+5. Recruiter/interview email classification
+6. Interview preparation assistant
+7. Authentication and per-user ownership controls
+8. Production object storage for resumes
+9. LLM evaluation datasets and regression tests
+10. Frontend dashboard

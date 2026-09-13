@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import applications, candidates, health, jobs
+from app.api.routes import analysis, applications, candidates, health, jobs, resumes
 from app.core.config import get_settings
 from app.core.exceptions import NotFoundError
 from app.core.logging import configure_logging
@@ -15,7 +15,7 @@ settings = get_settings()
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.1.0",
+    version="0.2.0",
     docs_url="/docs" if settings.app_env != "production" else None,
     redoc_url="/redoc" if settings.app_env != "production" else None,
 )
@@ -47,3 +47,5 @@ app.include_router(health.router)
 app.include_router(candidates.router, prefix=settings.api_v1_prefix)
 app.include_router(jobs.router, prefix=settings.api_v1_prefix)
 app.include_router(applications.router, prefix=settings.api_v1_prefix)
+app.include_router(resumes.router, prefix=settings.api_v1_prefix)
+app.include_router(analysis.router, prefix=settings.api_v1_prefix)

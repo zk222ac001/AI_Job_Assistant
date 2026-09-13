@@ -19,9 +19,16 @@ services:
     build: .
     env_file:
       - .env
+    # Containers communicate on the PostgreSQL container port (5432), not the
+    # host-published port (5433). This explicit override also prevents a stale
+    # local .env from accidentally pointing the API container at db:5433.
+    environment:
+      DATABASE_URL: postgresql+asyncpg://jb:jb@db:5432/jobassistant
     depends_on:
       db:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
     restart: unless-stopped
